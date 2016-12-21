@@ -20,6 +20,7 @@
 * 	1.0 2011-08-03 Initial release
 * 	1.1 2011-08-18 Support for backslashed quotes, added some code warnings
 * 	1.2 2011-09-29 Support for null or zero length strings after preg_replace is called, and explain how to handle these errors
+* 	1.3 2016-12-20 Support for PHP7.  Reworked deprecated preg_replace() to use preg_replace_callback().  Removed unused function unescape_quotes().
 * 
 * Knowed errors:
 *
@@ -45,15 +46,6 @@ function unescape_mysql($value) {
 					   array("\\",   "\0",  "\n",  "\r",  "\x1a", "'", '"'), 
 					   $value);
 }
-
-
-
-// Fix strange behaviour if you have escaped quotes in your replacement
-function unescape_quotes($value) {
-	return str_replace('\"', '"', $value);
-}	
-
-
 
 // Check command line arguments
 if (!(isset($argv) && isset($argv[1]))) {
@@ -109,7 +101,13 @@ if (!(isset($argv) && isset($argv[1]))) {
 				$do_preg_replace = true;
 
 				// Replace serialized string values
-				$data = preg_replace('!s:(\d+):([\\\\]?"[\\\\]?"|[\\\\]?"((.*?)[^\\\\])[\\\\]?");!e', "'s:'.strlen(unescape_mysql('$3')).':\"'.unescape_quotes('$3').'\";'", $data);
+				$data = preg_replace_callback(
+					'~s:\K\d+:(?|[\\\\]?"[\\\\]?"()|[\\\\]?"(.*?[^\\\\])[\\\\]?");~', 
+				   function ($m) {
+				     return strlen(unescape_mysql($m[1])) . ':\"' . $m[1] . '\";';
+				   },
+				   $data
+				);
 			}
 
 			// Close file
@@ -155,7 +153,4 @@ if (!(isset($argv) && isset($argv[1]))) {
 		}
 	}
 }
-
-
-
 ?>
